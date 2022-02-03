@@ -20,6 +20,7 @@ CMutFileFormat::CMutFileFormat(char delimiter_,
                int posNo_,
                int refalleleNo_,
                int varalleleNo_,
+               int mutationTypeNo_,
                int isHeader_)
 {
     delimiter = delimiter_;
@@ -29,6 +30,7 @@ CMutFileFormat::CMutFileFormat(char delimiter_,
     posNo = posNo_;
     refalleleNo = refalleleNo_;
     varalleleNo = varalleleNo_;
+    mutationTypeNo = mutationTypeNo_;
     isHeader = isHeader_;
 }
 
@@ -42,10 +44,10 @@ CMutation::CMutation(string cancer_,
 {
     size_t chrpos;
     
-    cancer_.copy(cancer,STRLEN_CANCER);
-    cancer[STRLEN_CANCER] = '\0';
-    sample_.copy(sample,STRLEN_SAMPLE);
-    sample[STRLEN_SAMPLE] = '\0';
+    cancer_.copy(cancer,cancer_.length());
+    cancer[cancer_.length()] = '\0';
+    sample_.copy(sample,sample_.length());
+    sample[sample_.length()] = '\0';
     for(int i=0;i<(STRLEN_CHR+1);i++)
         chr[i] = '\0';
     chrpos = chr_.find("chr");
@@ -68,6 +70,7 @@ CMutations::CMutations()
                                         3, // position filed num
                                         4, // ref allele num
                                         5, // var allele num
+                                        -1, // mutation type num
                                         1 // is header
                                         ));
     // PCAWG file format
@@ -78,11 +81,23 @@ CMutations::CMutations()
                                         1, // position filed num
                                         3, // ref allele num
                                         4, // var allele num
+                                        -1, // mutation type num
+                                        1 // is header
+                                        ));
+    // Gordenin file format
+    fileFormat.push_back(CMutFileFormat('\t',
+                                        -1, // cancer field num
+                                        20, // sample field num
+                                        1, // chromosome field num
+                                        2, // position filed num
+                                        5, // ref allele num
+                                        6, // var allele num
+                                        4, // mutation type num
                                         1 // is header
                                         ));
 }
 
-void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG */, string path, vector<string> onlyCancers, vector<string> onlySamples, int onlySubs, CHumanGenome* phuman)
+void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG *, 2- Gordenin's*/, string path, vector<string> onlyCancers, vector<string> onlySamples, int onlySubs, CHumanGenome* phuman)
 {
     vector<string> flds;
     string line;
@@ -116,6 +131,8 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
         if(f.eof())
             break;
         flds = splitd(line,fileFormat[fileFormatType].delimiter);
+        if(fileFormatType == FILE_FORMAT_GORDENIN && flds[fileFormat[fileFormatType].mutationTypeNo] != "SNP")
+            continue;
         if (fileFormatType == FILE_FORMAT_FRIDRIKSSON && !onlyCancers.empty() && find(onlyCancers.begin(),onlyCancers.end(),flds[fileFormat[fileFormatType].cancerNo]) == onlyCancers.end())
             continue;
         auto a = flds[fileFormat[fileFormatType].chrNo];
@@ -149,6 +166,8 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
         if (line.length() != 0)
         {
             flds = splitd(line,fileFormat[fileFormatType].delimiter);
+            if(fileFormatType == FILE_FORMAT_GORDENIN && flds[fileFormat[fileFormatType].mutationTypeNo] != "SNP")
+                continue;
             if (fileFormatType == FILE_FORMAT_FRIDRIKSSON && !onlyCancers.empty() && find(onlyCancers.begin(),onlyCancers.end(),flds[fileFormat[fileFormatType].cancerNo]) == onlyCancers.end())
                 continue;
             if(phuman!=NULL && phuman->GetChrNum(flds[fileFormat[fileFormatType].chrNo]) == -1)
@@ -157,7 +176,7 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
                 continue;
             if(onlySubs == 1 && flds[fileFormat[fileFormatType].refalleleNo].size() != flds[fileFormat[fileFormatType].varalleleNo].size())
                 continue;
-            if(fileFormatType == FILE_FORMAT_PCAWG)
+            if(fileFormatType == FILE_FORMAT_PCAWG || fileFormatType == FILE_FORMAT_GORDENIN)
                 cancerProject = onlyCancers[0];
             else
                 cancerProject = flds[fileFormat[fileFormatType].cancerNo];
@@ -176,7 +195,31 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
     
 }
 
-void CMutations::FilterMutations(CMutations& filteredMutations, vector<CMutationSignature>& signatures, CHumanGenome& human,
+void CMutations::FilterBySample(CMutations &filteredMutations, vector<string> cancers, vector<string> samples)
+{
+    int i;
+    CMutation* pmut;
+    
+    cout << "Mutation filtering ..." << endl;
+    
+    for(i=0;i<mutationsCnt;i++)
+    {
+        pmut = &mutations[i];
+        if (string(pmut->chr) == "M")
+            continue;
+        if (!cancers.empty() && find(cancers.begin(),cancers.end(),pmut->cancer) == cancers.end())
+            continue;
+        if (!samples.empty() && find(samples.begin(),samples.end(),pmut->sample) == samples.end())
+            continue;
+        
+        filteredMutations.mutations.push_back(*pmut);
+    }
+    
+    cout << filteredMutations.mutations.size() << " mutations selected." << '\n';
+    cout << "Done" << endl;
+}
+
+void CMutations::FilterBySignature(CMutations& filteredMutations, vector<CMutationSignature>& signatures, CHumanGenome& human,
                                  vector<string> cancers, vector<string> samples, CMutations* pOtherMutations=NULL)
 {
     int i,j;
@@ -243,6 +286,26 @@ void CMutations::FilterMutations(CMutations& filteredMutations, vector<CMutation
     printf("Done\n");
 }
 
+void CMutations::CheckRefAllels(CHumanGenome* phuman)
+{
+    int i;
+    int chrNum;
+    string dnaAllele;
+    CMutation* pmut;
+    
+    for(i=0;i<mutations.size();i++)
+    {
+        pmut = &mutations[i];
+        chrNum = CHumanGenome::GetChrNum(string(pmut->chr));
+        dnaAllele = string(1,phuman->dna[chrNum][pmut->pos - 1]);
+        if(dnaAllele != pmut->refallele)
+        {
+            cerr << "Mutations not correct";
+            throw exception();
+        }
+    }
+}
+
 void CMutations::SaveToFile(string path)
 {
     ofstream f;
@@ -283,7 +346,6 @@ void CMutations::RenameSamples(string renameTablePath, int columnNumOld, int col
 {
     string line;
     vector<string> flds;
-    int i;
     
     ifstream f(renameTablePath.c_str());
     if (!f.is_open())
@@ -308,4 +370,12 @@ void CMutations::RenameSamples(string renameTablePath, int columnNumOld, int col
         renamemap[mutations[i].sample].copy(mutations[i].sample,STRLEN_SAMPLE);
         mutations[i].sample[newSampleNameLen] = '\0';
     }
+}
+
+void CMutations::ClearMutations()
+{
+    mutations.clear();
+    mutationsCnt = 0;
+    cancerSample.clear();
+    renamemap.clear();
 }

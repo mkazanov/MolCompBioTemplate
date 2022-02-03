@@ -9,13 +9,14 @@
 #ifndef mutation_hpp
 #define mutation_hpp
 
-#define STRLEN_CANCER 4
+#define STRLEN_CANCER 20
 #define STRLEN_SAMPLE 36
 #define STRLEN_CHR 2
 #define STRLEN_REFALLELE 1
 #define STRLEN_VARALLELE 1
 #define FILE_FORMAT_FRIDRIKSSON 0
 #define FILE_FORMAT_PCAWG 1
+#define FILE_FORMAT_GORDENIN 2
 
 #include <stdio.h>
 #include <string>
@@ -38,6 +39,7 @@ public:
     int posNo;
     int refalleleNo;
     int varalleleNo;
+    int mutationTypeNo;
     int isHeader;
     CMutFileFormat(char delimiter_,
               int cancerNo_,
@@ -46,6 +48,7 @@ public:
               int posNo_,
               int refalleleNo_,
               int varalleleNo_,
+              int mutationTypeNo,
               int isHeader);
 };
 
@@ -124,17 +127,20 @@ public:
     map<string, string> renamemap;
     unsigned long mutationsCnt;
     void LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG */, string path, vector<string> onlyCancers=vector<string>(), vector<string> onlySamples=vector<string>(), int onlySubs=1, CHumanGenome* phuman = NULL);
-    void FilterMutations(CMutations& filteredMutations,
+    void FilterBySignature(CMutations& filteredMutations,
                          vector<CMutationSignature>& signatures,
                          CHumanGenome& human,
                          vector<string> cancers,
                          vector<string> samples,
                          CMutations* pOtherMutations);
+    void FilterBySample(CMutations& filteredMutations,vector<string> cancers, vector<string> samples);
+    void CheckRefAllels(CHumanGenome* phuman);
     set<CCancerSample> cancerSample;
     void GetUniqueCancersSamples();
     void SaveToFile(string path);
     void SaveToFileRTExp(string path);
     void RenameSamples(string renameTablePath, int columnNumOld, int columnNumNew, int newSampleNameLen);
+    void ClearMutations();
 };
 
 #endif /* mutation_hpp */
