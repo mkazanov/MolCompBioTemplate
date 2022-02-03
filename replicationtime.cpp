@@ -19,6 +19,21 @@
 #include <cstring>
 #include <cmath>
 
+CRTFileFormat::CRTFileFormat(char delimiter_,
+                               int chrNo_,
+                               int startPosNo_,
+                               int endPosNo_,
+                               int RTNo_,
+                               int isHeader_)
+{
+    delimiter = delimiter_;
+    chrNo = chrNo_;
+    startPosNo = startPosNo_;
+    endPosNo = endPosNo_;
+    RTNo = RTNo_;
+    isHeader = isHeader_;
+}
+
 CReplicationTime::CReplicationTime(string startpos_, string endpos_, string RTvalue_)
 {
     startpos = str2ul(startpos_);
@@ -48,10 +63,27 @@ CRTBin::CRTBin(int binNum_, double RTleft_, double RTright_)
 
 CReplicationTiming::CReplicationTiming()
 {
+    // Mybed file format
+    fileFormat.push_back(CRTFileFormat('\t', //separator
+                                        0, // chromosome field num
+                                        1, // start position field num
+                                        2, // end position field num
+                                        3, // RT value field num
+                                        0 // is header
+                                        ));
+    // Amnon Koren's new universal file format
+    fileFormat.push_back(CRTFileFormat('\t', //separator
+                                        0, // chromosome field num
+                                        1, // start position field num
+                                        2, // end position field num
+                                        4, // RT value field num
+                                        0 // is header
+                                        ));
+    
     RTs = new set<CReplicationTime>[24];
 }
 
-void CReplicationTiming::LoadReplicationTiming(string path, int isHeader)
+void CReplicationTiming::LoadReplicationTiming(string path, int fileFormatType /* 0 - Mybed, 1 - Koren's new data */)
 {
     string line;
     clock_t c1,c2;
@@ -64,7 +96,7 @@ void CReplicationTiming::LoadReplicationTiming(string path, int isHeader)
         exit(1);
     }
     
-    if(isHeader)
+    if(fileFormat[fileFormatType].isHeader)
         getline(f, line);
     
     printf("Replication timing loading ...\n");
@@ -75,16 +107,47 @@ void CReplicationTiming::LoadReplicationTiming(string path, int isHeader)
     {
         if (line.length() != 0)
         {
-            flds = split(line);
-            chrNum = CHumanGenome::GetChrNum(flds[0].substr(3));
-            RTs[chrNum].insert(CReplicationTime(flds[1],flds[2],flds[3]));
+            flds = splitd(line,fileFormat[fileFormatType].delimiter);
+            chrNum = CHumanGenome::GetChrNum(flds[fileFormat[fileFormatType].chrNo]);
+            RTs[chrNum].insert(CReplicationTime(flds[fileFormat[fileFormatType].startPosNo],
+                                                flds[fileFormat[fileFormatType].endPosNo],
+                                                flds[fileFormat[fileFormatType].RTNo]));
             i++;
         }
     }
     c2 = clock();
     printf("Replication timing intervals have been loaded\n");
     printf("Executing time: %lu \n", c2 - c1);
+    f.close();
 }
+
+void CReplicationTiming::LoadRTBins(string path)
+{
+    int i;
+    vector<string> flds;
+    string line;
+    
+    ifstream f(path.c_str());
+    if (!f.is_open())
+    {
+        printf("File not exists\n");
+        exit(1);
+    }
+
+    i = 0;
+    while(getline(f, line))
+    {
+        if (line.length() != 0)
+        {
+            flds = split(line);
+            bins.push_back(CRTBin(i,str2d(flds[1]),str2d(flds[2])));
+            i++;
+        }
+    }
+    
+    f.close();
+}
+
 
 int CReplicationTiming::GetRT(int chrNum, unsigned long pos, double& RTvalue)
 {
@@ -154,10 +217,14 @@ int CReplicationTiming::GetRTBin(int chrNum, unsigned long pos, vector<CRTBin> b
 
 void CReplicationTiming::ReplicationStrand()
 {
+    int i;
     set<CReplicationTime>::iterator it,previt,nextit;
     int chrNum;
+    long int a=0,b=0;
     
     for(chrNum=0;chrNum<24;chrNum++)
+    {
+        i = 0;
         for(it=RTs[chrNum].begin();it!=RTs[chrNum].end();++it)
         {
             //cout << it->RTvalue << '\n';
@@ -172,14 +239,28 @@ void CReplicationTiming::ReplicationStrand()
                 it->isForward = -1;
             else
             {
-                if(nextit->RTvalue - previt->RTvalue > 0)
+                if(nextit->RTvalue > it->RTvalue && it->RTvalue > previt->RTvalue)
+                {
                     it->isForward = 0;
-                else if(nextit->RTvalue - previt->RTvalue < 0)
+                    a++;
+                }
+                else if(nextit->RTvalue < it->RTvalue && it->RTvalue < previt->RTvalue)
+                {
                     it->isForward = 1;
+                    a++;
+                }
                 else
+                {
                     it->isForward = -1;
+                    b++;
+                }
             }
+            i++;
         }
+    }
+    
+    i = i + 1;
+    
 }
 
 void CReplicationTiming::SaveToFile(string path)
@@ -313,7 +394,7 @@ int CReplicationTiming::CalculateMotifinRTBins(set<string> motifs, string OUT_PA
     return(1);
 }
 
-void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman, string outputPath)
+void CReplicationTiming::CalculateRTbinsWidthByMotif(int binsNum, CHumanGenome* phuman, string outputPath)
 {
     int i,j,k;
     double rtval;
@@ -324,7 +405,7 @@ void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman,
     char nuc[4] = {'A','G','C','T'};
     vector<double> emptyVector;
     string path;
-
+    
     for(i=0;i<4;i++)
         for(j=0;j<4;j++)
             for(k=0;k<4;k++)
@@ -338,7 +419,7 @@ void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman,
     for(i=0;i<phuman->chrCnt;i++)
     {
         cout << "Chromosome: " << i << '\n';
-
+        
         for(j=1;j<(phuman->chrLen[i]-1);j++)
         {
             if(!(CDNA::inACGT(phuman->dna[i][j]) &&
@@ -349,7 +430,7 @@ void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman,
             res = GetRT(i, j+1, rtval);
             if(!res)
                 continue;
-
+            
             motif = string(1,phuman->dna[i][j-1]) + string(1,phuman->dna[i][j]) + string(1,phuman->dna[i][j+1]);
             motif2 = CDNA::cDNA(motif);
             motif = (motif < motif2) ? motif : motif2;
@@ -358,12 +439,18 @@ void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman,
         }
     }
     
-    ofstream f;
+    ofstream f,fm;
     double step;
     f.open(outputPath.c_str());
     for(it=results.begin();it!=results.end();it++)
     {
         sort(it->second.begin(),it->second.end());
+        
+        /*fm.open((outputPath+"_"+it->first+".txt").c_str());
+        for(i=0;i<it->second.size();i++)
+            fm << it->second[i] << endl;
+        fm.close();*/
+        
         f << it->first << '\t';
         step = it->second.size() / binsNum;
         for(i=1;i<binsNum;i++)
@@ -374,4 +461,43 @@ void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman,
     }
     f.close();
     
+}
+
+void CReplicationTiming::CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman, string outputPath)
+{
+    int i,j;
+    int res;
+    double rtval;
+    vector<double> rtvals;
+    
+    for(i=0;i<phuman->chrCnt;i++)
+    {
+        cout << "Chromosome: " << i << '\n';
+        
+        for(j=1;j<(phuman->chrLen[i]-1);j++)
+        {
+            if(!(CDNA::inACGT(phuman->dna[i][j]) &&
+                 CDNA::inACGT(phuman->dna[i][j-1]) &&
+                 CDNA::inACGT(phuman->dna[i][j+1])))
+                continue;
+            
+            res = GetRT(i, j+1, rtval);
+            if(!res)
+                continue;
+            
+            rtvals.push_back(rtval);
+        }
+    }
+
+    ofstream f;
+    double step;
+    f.open(outputPath.c_str());
+    sort(rtvals.begin(),rtvals.end());
+    step = rtvals.size() / binsNum;
+    for(i=1;i<binsNum;i++)
+    {
+        f << rtvals[round(i*step)] << '\t';
+    }
+    f << '\n';
+    f.close();
 }

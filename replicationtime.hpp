@@ -27,6 +27,23 @@
 
 using namespace std;
 
+class CRTFileFormat{
+public:
+    char delimiter;
+    int chrNo;
+    int startPosNo;
+    int endPosNo;
+    int RTNo;
+    int isHeader;
+    CRTFileFormat(char delimiter_,
+                   int chrNo_,
+                   int startPosNo_,
+                   int endPosNo_,
+                   int RTNo_,
+                   int isHeader);
+};
+
+
 class CReplicationTime {
 public:
     //int chrNum;
@@ -59,10 +76,12 @@ public:
 
 class CReplicationTiming {
     set<CReplicationTime>* RTs;
+    vector<CRTFileFormat> fileFormat;
 public:
     CReplicationTiming();
     vector<CRTBin> bins;
     void LoadReplicationTiming(string path, int isHeader);
+    void LoadRTBins(string path);
     int GetRT(int chrNum, unsigned long pos, double& RTvalue);
     int GetRT(int chrNum, unsigned long pos, CReplicationTime& rtobj);
     int GetRTBin(double RTvalue, vector<CRTBin> bins);
@@ -80,6 +99,7 @@ public:
         else
             return(STRAND_NULL);
     }
+    void CalculateRTbinsWidthByMotif(int binsNum, CHumanGenome* phuman, string outputPath);
     void CalculateRTbinsWidth(int binsNum, CHumanGenome* phuman, string outputPath);
 };
 
