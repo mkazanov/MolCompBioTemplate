@@ -95,6 +95,17 @@ CMutations::CMutations()
                                         4, // mutation type num
                                         1 // is header
                                         ));
+    // Gordenin anz4 format
+    fileFormat.push_back(CMutFileFormat('\t',
+                                        -1, // cancer field num
+                                        0, // sample field num
+                                        1, // chromosome field num
+                                        2, // position filed num
+                                        5, // ref allele num
+                                        6, // var allele num
+                                        4, // mutation type num
+                                        1 // is header
+                                        ));
 }
 
 void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG *, 2- Gordenin's*/, string path, vector<string> onlyCancers, vector<string> onlySamples, int onlySubs, CHumanGenome* phuman)
@@ -176,7 +187,7 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
                 continue;
             if(onlySubs == 1 && flds[fileFormat[fileFormatType].refalleleNo].size() != flds[fileFormat[fileFormatType].varalleleNo].size())
                 continue;
-            if(fileFormatType == FILE_FORMAT_PCAWG || fileFormatType == FILE_FORMAT_GORDENIN)
+            if(fileFormat[fileFormatType].cancerNo == -1)
                 cancerProject = onlyCancers[0];
             else
                 cancerProject = flds[fileFormat[fileFormatType].cancerNo];
