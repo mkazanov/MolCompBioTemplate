@@ -9,9 +9,6 @@
 #ifndef mutsignature_hpp
 #define mutsignature_hpp
 
-#define END_GENOME 0
-#define END_CHROMOSOME 1
-
 #include <string>
 #include <stdio.h>
 #include "ghuman.hpp"
@@ -31,8 +28,9 @@ public:
     int CheckMotifsNotEmpty(set<string> motifs);
     int CheckMotifsSameLength(set<string> motifs);
     set<string> AddcMotifs(set<string> motifs);
-    CDNAPos NextMotif(CDNAPos pos, char** motifsarr, int* strandarr, int motifsnum, int motiflen, CHumanGenome* phuman, int end, int includeCurrentPos=0);
-    unsigned long CountMotifGenome(set<string> motifs, CHumanGenome* phuman);
+    int NextMotif(CDNAInterval dnainterval, vector<CMutationSignature> ms, string strand /* forward - '+', reverse - '-', both - '+-' or '-+'*/, CHumanGenome* phuman, CDNAPos& res, int direction=1);
+    //CDNAPos NextMotif(CDNAPos pos, char** motifsarr, int* strandarr, int motifsnum, int motiflen, CHumanGenome* phuman, int end, int includeCurrentPos=0);
+    //unsigned long CountMotifGenome(set<string> motifs, CHumanGenome* phuman);
 };
 
 #endif /* mutsignature_hpp */

@@ -64,6 +64,112 @@ set<string>  CMutationSignature::AddcMotifs(set<string> motifs)
     return(motifsall);
 }
 
+
+int CMutationSignature::NextMotif(CDNAInterval dnainterval, vector<CMutationSignature> ms, string strand /* forward - '+', reverse - '-', both - '+-' or '-+'*/, CHumanGenome* phuman, CDNAPos& res, int direction)
+{
+    unsigned long startpos;
+    unsigned long endpos;
+    unsigned long pos;
+    unsigned long finalpos;
+    int chrNum;
+    int dir;
+    unsigned long i,j;
+    int motiflen;
+    string motif,reversemotif;
+    string foundMotif;
+    vector<string> motifs;
+    int subspos;
+    
+    // Interval check
+    if(dnainterval.Check() != 1)
+        return(0);
+    
+    for(i=0;i<ms.size();i++)
+    {
+        motifs.push_back(ms[i].motif);
+        subspos = ms[i].mutationPos;
+    }
+    
+    if(strand != "-" && strand != "+" && strand != "+-" && strand != "-+")
+    {
+        cerr << "Error: strand value is not among '+','-','+-','-+'." << '\n';
+        return(0);
+    }
+    
+    motiflen = motifs[0].length();
+    
+    chrNum = dnainterval.chrNum;
+    
+    if(strand == "-")
+        dir = -1;
+    else if(strand == "+")
+        dir = 1;
+    else
+        dir = direction;
+    
+    if(dir == -1)
+    {
+        if(dnainterval.endpos == CDNA::END_CHROMOSOME)
+            startpos = phuman->chrLen[chrNum];
+        else
+            startpos = dnainterval.endpos;
+        endpos = dnainterval.startpos;
+    }
+    else
+    {
+        startpos = dnainterval.startpos;
+        if(dnainterval.endpos == CDNA::END_CHROMOSOME)
+            endpos = phuman->chrLen[chrNum];
+        else
+            endpos = dnainterval.endpos;
+    }
+    
+    for(i=startpos;i!=(endpos+dir);i+=dir)
+    {
+        motif = "";
+        reversemotif = "";
+        if(strand == "+" || strand == "+-" || strand == "-+")
+        {
+            for(j=0;j<motiflen;j++)
+            {
+                pos = i - subspos + 1 + j;
+                //if(j == (endpos + dir)) check pos
+                //break;
+                motif += phuman->dna[chrNum][pos-1];
+            }
+        }
+        if(strand == "-" || strand == "+-" || strand == "-+")
+        {
+            for(j=0;j<motiflen;j++)
+            {
+                pos = i - motiflen + subspos + j;
+                reversemotif += phuman->dna[chrNum][pos-1];
+            }
+            reversemotif = CDNA::cDNA(reversemotif);
+        }
+        
+        foundMotif = "";
+        if(motif.length() == motiflen)
+        {
+            if(find(motifs.begin(),motifs.end(),motif) != motifs.end())
+                foundMotif = motif;
+        }
+        if(reversemotif.length() == motiflen)
+        {
+            if(find(motifs.begin(),motifs.end(),reversemotif) != motifs.end())
+                    foundMotif = reversemotif;
+        }
+        if(foundMotif != "")
+        {
+            res = CDNAPos(chrNum,i,foundMotif);
+            return(1);
+        }
+    }
+    return(0);
+}
+
+// old
+/*
 CDNAPos CMutationSignature::NextMotif(CDNAPos pos, char** motifsarr, int* strandarr, int motifsnum, int motiflen, CHumanGenome* phuman, int end, int includeCurrentPos)
 {
     CDNAPos ret = CDNAPos(-1,0);
@@ -112,7 +218,9 @@ CDNAPos CMutationSignature::NextMotif(CDNAPos pos, char** motifsarr, int* strand
     }
     return(ret);
 }
+*/
 
+/*
 unsigned long CMutationSignature::CountMotifGenome(set<string> motifs, CHumanGenome* phuman)
 {
     unsigned long res = 0;
@@ -158,3 +266,4 @@ unsigned long CMutationSignature::CountMotifGenome(set<string> motifs, CHumanGen
     
     return(res);
 }
+*/
