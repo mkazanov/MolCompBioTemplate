@@ -17,6 +17,9 @@
 #define FILE_FORMAT_FRIDRIKSSON 0
 #define FILE_FORMAT_PCAWG 1
 #define FILE_FORMAT_GORDENIN 2
+#define FILE_FORMAT_GORDENIN_ANZ4 3
+#define FILE_FORMAT_GORDENIN_ZACH_ANZ4 4
+
 
 #include <stdio.h>
 #include <string>
@@ -39,7 +42,10 @@ public:
     int posNo;
     int refalleleNo;
     int varalleleNo;
+    int strandNo;
     int mutationTypeNo;
+    int info1No;
+    int info2No;
     int isHeader;
     CMutFileFormat(char delimiter_,
               int cancerNo_,
@@ -48,7 +54,10 @@ public:
               int posNo_,
               int refalleleNo_,
               int varalleleNo_,
+              int strandNo_,
               int mutationTypeNo,
+              int info1No_,
+              int info2No_,
               int isHeader);
 };
 
@@ -104,7 +113,9 @@ public:
     unsigned long pos;
     string refallele;
     string varallele;
-    char isForwardStrand;
+    int isForwardStrand;
+    string info1;
+    string info2;
     int RTbin;
     int RTstrand;
     int EXPbin;
@@ -115,7 +126,9 @@ public:
               string pos_,
               string refallele_,
               string varallele_,
-              char isForwardStrand_);
+              string isForwardStrand_,
+              string info1_,
+              string info2_);
     CMutation(){};
 };
 
@@ -132,7 +145,7 @@ public:
                          CHumanGenome& human,
                          vector<string> cancers,
                          vector<string> samples,
-                         CMutations* pOtherMutations);
+                         CMutations* pOtherMutations=NULL);
     void FilterBySample(CMutations& filteredMutations,vector<string> cancers, vector<string> samples);
     void CheckRefAllels(CHumanGenome* phuman);
     set<CCancerSample> cancerSample;

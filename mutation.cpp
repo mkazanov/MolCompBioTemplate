@@ -20,7 +20,10 @@ CMutFileFormat::CMutFileFormat(char delimiter_,
                int posNo_,
                int refalleleNo_,
                int varalleleNo_,
+               int strandNo_,
                int mutationTypeNo_,
+               int info1No_,
+               int info2No_,
                int isHeader_)
 {
     delimiter = delimiter_;
@@ -30,7 +33,10 @@ CMutFileFormat::CMutFileFormat(char delimiter_,
     posNo = posNo_;
     refalleleNo = refalleleNo_;
     varalleleNo = varalleleNo_;
+    strandNo = strandNo_;
     mutationTypeNo = mutationTypeNo_;
+    info1No = info1No_;
+    info2No = info2No_;
     isHeader = isHeader_;
 }
 
@@ -40,7 +46,9 @@ CMutation::CMutation(string cancer_,
                      string pos_,
                      string refallele_,
                      string varallele_,
-                     char isForwardStrand_)
+                     string isForwardStrand_,
+                     string info1_,
+                     string info2_)
 {
     size_t chrpos;
     
@@ -57,7 +65,17 @@ CMutation::CMutation(string cancer_,
     pos = str2ul(pos_.c_str());
     refallele = refallele_;
     varallele = varallele_;
-    isForwardStrand = isForwardStrand_;
+    if(isForwardStrand_ == "+" || isForwardStrand_ == "1")
+        isForwardStrand = 1;
+    else if (isForwardStrand_ == "-" || isForwardStrand_ == "0")
+        isForwardStrand = 0;
+    else
+    {
+        cerr << "Unknown mutation strand: " << isForwardStrand_ << '\n';
+        exit(1);
+    }
+    info1 = info1_;
+    info2 = info2_;
 }
 
 CMutations::CMutations()
@@ -70,7 +88,10 @@ CMutations::CMutations()
                                         3, // position filed num
                                         4, // ref allele num
                                         5, // var allele num
+                                        -1, // strand field num
                                         -1, // mutation type num
+                                        -1, // info1 field num
+                                        -1, // info2 field num
                                         1 // is header
                                         ));
     // PCAWG file format
@@ -81,7 +102,10 @@ CMutations::CMutations()
                                         1, // position filed num
                                         3, // ref allele num
                                         4, // var allele num
+                                        -1, // strand field num
                                         -1, // mutation type num
+                                        -1, // info1 field num
+                                        -1, // info2 field num
                                         1 // is header
                                         ));
     // Gordenin file format
@@ -92,7 +116,10 @@ CMutations::CMutations()
                                         2, // position filed num
                                         5, // ref allele num
                                         6, // var allele num
+                                        -1, // strand field num
                                         4, // mutation type num
+                                        -1, // info1 field num
+                                        -1, // info2 field num
                                         1 // is header
                                         ));
     // Gordenin anz4 format
@@ -103,9 +130,28 @@ CMutations::CMutations()
                                         2, // position filed num
                                         5, // ref allele num
                                         6, // var allele num
+                                        -1, // strand field num
                                         4, // mutation type num
+                                        -1, // info1 field num
+                                        -1, // info2 field num
                                         1 // is header
                                         ));
+    
+    // Gordenin-Zach anz4 format
+    fileFormat.push_back(CMutFileFormat('\t',
+                                        -1, // cancer field num
+                                        1, // sample field num
+                                        2, // chromosome field num
+                                        3, // position filed num
+                                        4, // ref allele num
+                                        5, // var allele num
+                                        55, // strand field num
+                                        -1, // mutation type num
+                                        63, // info1 field num
+                                        61, // info2 field num
+                                        1 // is header
+                                        ));
+
 }
 
 void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG *, 2- Gordenin's*/, string path, vector<string> onlyCancers, vector<string> onlySamples, int onlySubs, CHumanGenome* phuman)
@@ -114,6 +160,7 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
     string line;
     clock_t c1,c2;
     string cancerProject;
+    int isForwardStrand;
     
     ifstream f(path.c_str());
     if (!f.is_open())
@@ -196,7 +243,10 @@ void CMutations::LoadMutations(int fileFormatType /* 0 - Fridriksson, 1 - PCAWG 
                                               flds[fileFormat[fileFormatType].chrNo],
                                               flds[fileFormat[fileFormatType].posNo],
                                               flds[fileFormat[fileFormatType].refalleleNo],
-                                              flds[fileFormat[fileFormatType].varalleleNo],1));
+                                              flds[fileFormat[fileFormatType].varalleleNo],
+                                              flds[fileFormat[fileFormatType].strandNo],
+                                              flds[fileFormat[fileFormatType].info1No],
+                                              flds[fileFormat[fileFormatType].info2No]));
             i++;
         }
     }
@@ -227,19 +277,20 @@ void CMutations::FilterBySample(CMutations &filteredMutations, vector<string> ca
     }
     
     cout << filteredMutations.mutations.size() << " mutations selected." << '\n';
+    filteredMutations.mutationsCnt = filteredMutations.mutations.size();
     cout << "Done" << endl;
 }
 
 void CMutations::FilterBySignature(CMutations& filteredMutations, vector<CMutationSignature>& signatures, CHumanGenome& human,
-                                 vector<string> cancers, vector<string> samples, CMutations* pOtherMutations=NULL)
+                                 vector<string> cancers, vector<string> samples, CMutations* pOtherMutations)
 {
     int i,j;
     CMutation m;
     CMutationSignature s;
     string mutBase;
     string ss;
-    unsigned long startPosShift, endPosShift;
-    string gmotif;
+    int startPosShift, endPosShift;
+    string seq,seqrev;
     int foundMutation;
     
     printf("Mutation filtering ...");
@@ -258,19 +309,20 @@ void CMutations::FilterBySignature(CMutations& filteredMutations, vector<CMutati
         for(j=0;j<signatures.size();j++)
         {
             s = signatures[j];
-            startPosShift = 1 - s.mutationPos;
+            startPosShift = s.mutationPos - 1;
             endPosShift = s.motif.length() - s.mutationPos;
             mutBase = s.motif[s.mutationPos-1];
             ss = string(m.chr);
 
-            gmotif = human.dnaSubstr(human.GetChrNum(string(m.chr)),m.pos+startPosShift,m.pos+endPosShift);
+            seq = human.dnaSubstr(human.GetChrNum(string(m.chr)),m.pos-startPosShift,m.pos+endPosShift);
+            seqrev = CDNA::cDNA(human.dnaSubstr(human.GetChrNum(string(m.chr)),m.pos-endPosShift,m.pos+startPosShift));
                         
             if ((m.refallele == mutBase &&
                  (s.AnyNewBase() || (m.varallele == s.newbase) ) &&
-                 gmotif == s.motif) ||
+                 CDNA::compareMotifDNA(s.motif,seq)) ||
                 (m.refallele == CDNA::cDNA(mutBase) &&
                  (s.AnyNewBase() || m.varallele == CDNA::cDNA(s.newbase) ) &&
-                 gmotif == CDNA::cDNA(s.motif) )
+                 CDNA::compareMotifDNA(s.motif,seqrev))
                 )
                 {
                     if (m.refallele == mutBase)
@@ -292,8 +344,12 @@ void CMutations::FilterBySignature(CMutations& filteredMutations, vector<CMutati
             }
     }
     cout << "Signature mutations: " << filteredMutations.mutations.size() << '\n';
+    filteredMutations.mutationsCnt = filteredMutations.mutations.size();
     if(pOtherMutations!=NULL)
+    {
         cout << "Other mutations: " << pOtherMutations->mutations.size() << '\n';
+        pOtherMutations->mutationsCnt = pOtherMutations->mutations.size();
+    }
     printf("Done\n");
 }
 
