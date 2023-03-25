@@ -89,7 +89,7 @@ public:
     void GetRTBinStrand(map<string,CReplicationTiming*> rtmap,const CMutation& mut, int& bin, int& strand);
     void ReplicationStrand();
     void SaveToFile(string path);
-    int CalculateMotifinRTBins(set<string> motifs, string OUT_PATH, CHumanGenome* phuman_ = NULL);
+    //int CalculateMotifinRTBins(set<string> motifs, string OUT_PATH, CHumanGenome* phuman_ = NULL);
     static int oppositeStrand(int strand)
     {
         if(strand == STRAND_LAGGING)

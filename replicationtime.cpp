@@ -295,7 +295,7 @@ void CReplicationTiming::GetRTBinStrand(map<string,CReplicationTiming*> rtmap,co
         strand = STRAND_NULL;
 
 }
-
+/*
 int CReplicationTiming::CalculateMotifinRTBins(set<string> motifs, string OUT_PATH, CHumanGenome* phuman)
 {
     CMutationSignature msobj;
@@ -393,7 +393,7 @@ int CReplicationTiming::CalculateMotifinRTBins(set<string> motifs, string OUT_PA
     
     return(1);
 }
-
+*/
 void CReplicationTiming::CalculateRTbinsWidthByMotif(int binsNum, CHumanGenome* phuman, string outputPath)
 {
     int i,j,k;
